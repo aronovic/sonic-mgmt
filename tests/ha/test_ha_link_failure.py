@@ -248,7 +248,7 @@ def test_ha_link_failure(
         else:
             logger.info(f"Standby link fail with {traffic} test OK. All {send_count} packets sent were received.")
     else:
-        threshold_loss = rate_pps * 2.0 # Up to 2s of allowable loss during link failure.
+        threshold_loss = rate_pps * 2.0  # Up to 2s of allowable loss during link failure.
         percentage_loss = (failed_count / send_count) * 100
         if (failed_count < threshold_loss):
             logger.info(f"Primary link fail with {traffic} test OK. Sent: {send_count},"
