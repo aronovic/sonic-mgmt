@@ -722,7 +722,7 @@ def setup_ha_config(duthosts, tbinfo):
     return final_cfg
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def setup_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(current_dir, "..", "common", "ha")
