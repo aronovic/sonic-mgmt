@@ -33,7 +33,7 @@ def common_setup_teardown(
     skip_config,
     dpuhosts,
     setup_ha_config,
-    setup_dash_ha_from_jason,
+    setup_dash_ha_from_json,
     setup_gnmi_server,
     set_vxlan_udp_sport_range,
     setup_npu_dpu  # noqa: F811
@@ -186,7 +186,6 @@ def test_ha_dut_config_reload(
 
     t.join()
     time.sleep(2)
-    breakpoint()
     traffic = "traffic to standby" if traffic_to_standby else "traffic to primary"
     if standby_config_reload:
         if failed_count > 0:

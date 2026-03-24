@@ -11,7 +11,7 @@ from constants import (
     REMOTE_PTF_RECV_INTF
 )
 from gnmi_utils import apply_messages
-from packets import outbound_pl_packets, inbound_pl_packets
+from packets import outbound_pl_packets
 from tests.common.config_reload import config_reload
 from ha_bgp_utils import ha_bgp_shutdown, ha_bgp_start
 
@@ -126,12 +126,9 @@ def test_ha_bgp_shut(
 
     if traffic_to_standby:
         vm_to_dpu_pkt, exp_dpu_to_pe_pkt = outbound_pl_packets(dash_pl_config[1], encap_proto)
-        pe_to_dpu_pkt, exp_dpu_to_vm_pkt = inbound_pl_packets(dash_pl_config[1])
     else:
         vm_to_dpu_pkt, exp_dpu_to_pe_pkt = outbound_pl_packets(dash_pl_config[0], encap_proto)
-        pe_to_dpu_pkt, exp_dpu_to_vm_pkt = inbound_pl_packets(dash_pl_config[0])
 
-    _, exp_dpu_to_vm_pkt_standby = inbound_pl_packets(dash_pl_config[1])
     packet_sending_flag = queue.Queue(1)
 
     send_count = 0
@@ -190,7 +187,6 @@ def test_ha_bgp_shut(
 
     t.join()
     time.sleep(2)
-    breakpoint()
     traffic = "traffic to standby" if traffic_to_standby else "traffic to primary"
     if bgp_shut_on_standby:
         if failed_count > 0:
