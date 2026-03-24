@@ -718,13 +718,11 @@ def setup_ha_config(duthosts, tbinfo):
     return final_cfg
 
 
-@pytest.fixture(scope="module")
-def setup_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
+def setup_dash_ha_utility(duthosts, localhost, ptfhost, setup_gnmi_server):
+    logger.info("HA: setup from json for Primary and Standby")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(current_dir, "..", "common", "ha")
     ha_set_file = os.path.join(base_dir, "dash_ha_set_dpu_config_table.json")
-
-    logger.info("HA: setup from json for Primary and Standby")
 
     # Workaround for the neigh resolve issue
     # To be removed after fixes are merged: PR 147, 148 in sonic-dash-ha
@@ -787,14 +785,16 @@ def setup_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
             ptfhost=ptfhost,
             messages=ha_scope_messages,
         )
-    yield
 
 
 @pytest.fixture(scope="function")
-def activate_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
-    # -------------------------------------------------
-    # Step 4: Activate Role (using pending_operation_ids)
-    # -------------------------------------------------
+def setup_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
+
+    setup_dash_ha_utility(duthosts, localhost, ptfhost, setup_gnmi_server)
+    yield
+
+
+def activate_dash_ha_utility(duthosts, localhost, ptfhost, setup_gnmi_server):
     activate_scope_per_dut = [
         (
             "vdpu0_0:haset0_0",
@@ -816,6 +816,7 @@ def activate_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
         ),
     ]
     logger.info("HA: activate Primary and Standby")
+
     for duthost, (key, fields) in zip(duthosts, activate_scope_per_dut):
         is_active = verify_ha_state(duthost, scope_key=key, expected_state="active", timeout=10, interval=5)
         if not is_active:
@@ -825,46 +826,25 @@ def activate_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
         logger.info("HA: Primary and Standby already active")
     else:
         for duthost, (key, fields) in zip(duthosts, activate_scope_per_dut):
+            logger.info(f"HA: activate {duthost.hostname}")
             vdpu_id, ha_set_id = key.split(":", 1)
-            ha_scope_messages = ha_scope_config(
-                vdpu_id=vdpu_id,
-                ha_set_id=ha_set_id,
-                **fields,
-            )
-            apply_ha_messages(
-                localhost=localhost,
-                duthost=duthost,
-                ptfhost=ptfhost,
-                messages=ha_scope_messages,
-            )
+            ha_scope_messages = ha_scope_config(vdpu_id=vdpu_id, ha_set_id=ha_set_id, **fields)
+            apply_ha_messages(localhost=localhost, duthost=duthost, ptfhost=ptfhost, messages=ha_scope_messages)
         for idx, (duthost, (key, fields)) in enumerate(zip(duthosts, activate_scope_per_dut)):
             pending_id = wait_for_pending_operation_id(
                 duthost,
                 scope_key=key,
                 expected_op_type="activate_role",
                 timeout=120,
-                interval=2
+                interval=2,
             )
-            assert pending_id, (
-                f"Timed out waiting for active pending_operation_id "
-                f"for {duthost.hostname} scope {key}"
-            )
+            assert pending_id, f"Timed out waiting for active pending_operation_id for {duthost.hostname} scope {key}"
 
             logger.info(f"DASH HA {duthost.hostname} found pending id {pending_id}")
             vdpu_id, ha_set_id = key.split(":", 1)
-            ha_scope_messages = ha_scope_config(
-                vdpu_id=vdpu_id,
-                ha_set_id=ha_set_id,
-                approved_pending_operation_ids=[pending_id],
-                **fields,
-            )
-            apply_ha_messages(
-                localhost=localhost,
-                duthost=duthost,
-                ptfhost=ptfhost,
-                messages=ha_scope_messages,
-            )
-            # Verify HA state using fields
+            ha_scope_messages = ha_scope_config(vdpu_id=vdpu_id, ha_set_id=ha_set_id,
+                                                approved_pending_operation_ids=[pending_id], **fields)
+            apply_ha_messages(localhost=localhost, duthost=duthost, ptfhost=ptfhost, messages=ha_scope_messages)
             expected_state = "active"
             assert verify_ha_state(
                 duthost,
@@ -875,4 +855,9 @@ def activate_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
             ), f"HA did not reach expected state {expected_state} for {key} on {duthost.hostname}"
             logger.info(f"Activate completed for {duthost.hostname}")
         logger.info("HA: activate completed for Primary and Standby")
+
+
+@pytest.fixture(scope="function")
+def activate_dash_ha_from_json(duthosts, localhost, ptfhost, setup_gnmi_server):
+    activate_dash_ha_utility(duthosts, localhost, ptfhost, setup_gnmi_server)
     yield
