@@ -1,31 +1,11 @@
 import logging
 import json
+import os
 
 from tests.common.utilities import wait_until
-from tests.ha.ha_gnmi import apply_ha_messages, ha_scope_config
+from tests.ha.ha_gnmi import apply_ha_messages, ha_scope_config, ha_set_config
 
 logger = logging.getLogger(__name__)
-
-
-def set_ha_scope_dead(duthost, scope_key, owner="dpu"):
-    """
-    Set DASH_HA_SCOPE_CONFIG_TABLE entry to "dead" state
-    scope_key example: vdpu0_0:haset0_0
-    """
-
-    fields = {
-                 "version": "1",
-                 "disabled": "true",
-                 "desired_ha_state": "dead",
-                 "ha_set_id": "haset0_0",
-                 "owner": owner,
-             }
-    proto_utils_hset(
-            duthost,
-            table="DASH_HA_SCOPE_CONFIG_TABLE",
-            key=scope_key,
-            args=build_dash_ha_scope_args(fields),
-    )
 
 
 def build_dash_ha_scope_args(fields):
@@ -286,7 +266,7 @@ def activate_dash_ha(localhost, duthost, ptfhost, scope_key, fields, expected_op
         return False
 
 
-def set_dead_dash_ha_scope(localhost, duthost, ptfhost, scope_key):
+def set_dead_dash_ha_scope(localhost, duthost, ptfhost, scope_key, owner="dpu"):
     """
     Set DASH_HA_SCOPE_CONFIG_TABLE entry to "dead" state
     scope_key example: vdpu0_0:haset0_0
@@ -295,7 +275,7 @@ def set_dead_dash_ha_scope(localhost, duthost, ptfhost, scope_key):
                 "version": "1",
                 "disabled": True,
                 "desired_ha_state": "dead",
-                "owner": "dpu",
+                "owner": owner,
             }
     _apply_ha_scope_gnmi(localhost, duthost, ptfhost, scope_key, fields)
 
@@ -329,3 +309,70 @@ def wait_for_pending_operation_id(
     )
 
     return pending_id if success else None
+
+
+def teardown_dash_ha_from_json(duthosts, localhost, ptfhost):
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.join(current_dir, "..", "common", "ha")
+    ha_set_file = os.path.join(base_dir, "dash_ha_set_dpu_config_table.json")
+
+    logger.info("HA: Teardown  Primary and Standby HA SCOPE and HA SET")
+
+    # -------------------------------------------------
+    # Remove HA SCOPE per DUT
+    # -------------------------------------------------
+    ha_scope_per_dut = [
+        (
+            "vdpu0_0:haset0_0",
+            {
+                "version": "1",
+                "disabled": True,
+                "desired_ha_state": "active",
+                "owner": "dpu",
+            },
+        ),
+        (
+            "vdpu1_0:haset0_0",
+            {
+                "version": "1",
+                "disabled": True,
+                "desired_ha_state": "unspecified",
+                "owner": "dpu",
+            },
+        ),
+    ]
+
+    for duthost, (key, fields) in zip(duthosts, ha_scope_per_dut):
+        vdpu_id, ha_set_id = key.split(":", 1)
+        ha_scope_messages = ha_scope_config(
+            vdpu_id=vdpu_id,
+            ha_set_id=ha_set_id,
+            **fields,
+        )
+        logger.info(f"HA: Removing HA SCOPE {key} on {duthost.hostname}")
+        apply_ha_messages(
+            localhost=localhost,
+            duthost=duthost,
+            ptfhost=ptfhost,
+            messages=ha_scope_messages,
+            set_db=False
+        )
+
+    # Load the HA Set configuration from the JSON file
+    with open(ha_set_file) as f:
+        ha_set_data = json.load(f)["DASH_HA_SET_CONFIG_TABLE"]
+
+    # -------------------------------------------------
+    # Remove HA SET on BOTH DUTs
+    # -------------------------------------------------
+    for duthost in duthosts:
+        for key, fields in ha_set_data.items():
+            logger.info(f"HA: Removing HA SET {key} on {duthost.hostname}")
+            ha_set_messages = ha_set_config(ha_set_id=key, **fields)
+            apply_ha_messages(
+                localhost=localhost,
+                duthost=duthost,
+                ptfhost=ptfhost,
+                messages=ha_set_messages,
+                set_db=False
+            )
