@@ -1,5 +1,4 @@
 import logging
-import re
 
 
 logger = logging.getLogger(__name__)
@@ -7,14 +6,10 @@ logger = logging.getLogger(__name__)
 
 def _ha_bgp_oper(duthost, start=True):
 
-    output = duthost.shell('show ip bgp summary')['stdout']
-    logger.info(f"Current BGP Neighbors:\n, {output}")
-
-    # Extract BGP neighbor IPs using regex
-    # Assuming the neighbor IPs appear in a column, adjust this part based on actual output format
-    neighbor_ips = re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', output)
-
-    # Shutdown each BGP neighbor
+    cmd = 'show ip bgp summary'
+    parse_result = duthost.show_and_parse(cmd)
+    neighbor_ips = {entry['neighbor'] for entry in parse_result}
+    # Shutdown or start each BGP neighbor
     for neighbor_ip in neighbor_ips:
         if start:
             bgp_command = f'config bgp start neighbor {neighbor_ip}'
