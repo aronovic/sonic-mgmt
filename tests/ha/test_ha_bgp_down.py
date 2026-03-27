@@ -85,8 +85,9 @@ def common_setup_teardown(
         apply_messages(localhost, duthost, ptfhost, pl.ENI_ROUTE_GROUP1_CONFIG, dpuhost.dpu_index)
 
     yield
-
-    config_reload(dpuhost, safe_reload=True, yang_validate=False)
+    for dpuhost in dpuhosts:
+        logger.info(f"config reload on {dpuhost.hostname}")
+        config_reload(dpuhost, safe_reload=True, yang_validate=False)
 
 
 """
@@ -190,18 +191,18 @@ def test_ha_bgp_shut(
     traffic = "traffic to standby" if traffic_to_standby else "traffic to primary"
     if bgp_shut_on_standby:
         if failed_count > 0:
-            pytest.fail(f"Standby BGP shut with {traffic} test error: "
+            pytest.fail(f"Standby BGP shut with {traffic} test failed: "
                         f"sent: {send_count}, lost {failed_count}")
         else:
-            logger.info(f"Standby BGP shut with {traffic} test OK. All {send_count} packets received.")
+            logger.info(f"Standby BGP shut with {traffic} test passed. All {send_count} packets received.")
     else:
         threshold_loss = TRAFFIC_LOSS_THRESHOLD_PERCENTAGE
         percentage_loss = (failed_count / send_count) * 100
         if (percentage_loss < threshold_loss):
-            logger.info(f"Primary BGP shut with {traffic} test OK. Sent: {send_count},"
+            logger.info(f"Primary BGP shut with {traffic} test passed. Sent: {send_count},"
                         f" lost: {failed_count}, percentage loss: {percentage_loss}, threshold: {threshold_loss}")
         else:
-            pytest.fail(f"Primary BGP shut with {traffic} test error. Sent: {send_count},"
+            pytest.fail(f"Primary BGP shut with {traffic} test failed. Sent: {send_count},"
                         f" lost: {failed_count} percentage loss: {percentage_loss}, threshold: {threshold_loss}")
     if bgp_shut_on_standby:
         ha_bgp_start(duthosts[1])
