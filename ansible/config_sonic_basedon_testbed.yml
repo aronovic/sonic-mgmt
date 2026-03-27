@@ -816,6 +816,14 @@
         rescue:
           - debug: msg="SOC properties may not be defined in the device config file. Skipping adjustment of SOC properties."
 
+      # golden config for lt2/ft2 modifies the PORT table. To support lt2-isolated
+      # which have some interfaces disabled, apply the minigraph config first so that
+      # golden config inherits the same admin_status settings
+      - name: Apply minigraph prior to generating golden_config_db.json
+        become: true
+        shell: config load_minigraph -y
+        when: "'lt2' in topo or 'ft2' in topo"
+
       - name: Generate golden_config_db.json
         generate_golden_config_db:
           topo_name: "{{ topo }}"
@@ -981,21 +989,24 @@
           - name: Wait for chrony.service restart after reload minigraph
             become: true
             service: name=chrony state=started
+            register: chrony_start_result
+            retries: 12
+            delay: 10
+            until: chrony_start_result is succeeded
 
-          - name: Stop chrony.service on DUT
+          - name: Force rapid NTP polling with chrony
             become: true
-            service: name=chrony state=stopped
+            command: chronyc burst 4/4
 
-          - name: Sync DUT system time with NTP server
+          - name: Wait for chrony synchronization (remaining correction < 0.5s)
             become: true
-            command: chronyd -F 1 -q
             ignore_errors: true
-            async: 60
-            poll: 10
+            command: chronyc waitsync 12 0.5 10.0 5
 
-          - name: Start chrony.service on DUT
+          - name: Force immediate time step with chrony
             become: true
-            service: name=chrony state=restarted enabled=true
+            command: chronyc makestep
+
         when: chrony_service.status.LoadState != "not-found"
 
       - name: Check if "config bmp" is supported
